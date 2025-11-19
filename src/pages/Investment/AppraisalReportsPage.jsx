@@ -1,0 +1,888 @@
+import React, { useState } from 'react';
+import { FileCheck, Phone, Mail, MapPin, Download, UserPlus, Search, X, Save, User, CheckCircle, DollarSign, AlertCircle } from 'lucide-react';
+import { useData } from '../../context/DataContext';
+import { useAuth } from '../../context/AuthContext';
+import DashboardLayout from '../../components/Layout/DashboardLayout';
+
+const AppraisalReportsPage = () => {
+  const { leads, createAssignment, findInvestorByDNI, assignments } = useData();
+  const { user } = useAuth();
+
+  // Estados para el modal de asignación
+  const [showAssignmentModal, setShowAssignmentModal] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [searchDNI, setSearchDNI] = useState('');
+  const [foundInvestor, setFoundInvestor] = useState(null);
+  const [searchError, setSearchError] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const [mortgageData, setMortgageData] = useState({
+    mortgageAmount: '',
+    amountToBorrower: '',
+    amountToDominick: '',
+    interestRate: '',
+    termMonths: '',
+    modality: 'Mensual'
+  });
+  const [formErrors, setFormErrors] = useState({});
+  const [showSuccess, setShowSuccess] = useState(false);
+
+  // Obtener todos los leads de préstamo con tasación completada
+  const appraisalReports = leads.filter(lead => 
+    (lead.leadType === 'préstamo' || !lead.leadType) && 
+    lead.appraisalInfo && 
+    lead.appraisalInfo.completedAt
+  );
+
+  // Verificar si un reporte ya está asignado
+  const isAssigned = (leadId) => {
+    return assignments?.some(a => a.loanLeadId === leadId);
+  };
+
+  const getAssignmentInfo = (leadId) => {
+    return assignments?.find(a => a.loanLeadId === leadId);
+  };
+
+  const handleOpenAssignment = (report) => {
+    setSelectedReport(report);
+    setSearchDNI('');
+    setFoundInvestor(null);
+    setSearchError('');
+    setFormErrors({});
+    setShowSuccess(false);
+    setMortgageData({
+      mortgageAmount: '',
+      amountToBorrower: '',
+      amountToDominick: '',
+      interestRate: '',
+      termMonths: '',
+      modality: 'Mensual'
+    });
+    setShowAssignmentModal(true);
+  };
+
+  const handleSearchInvestor = () => {
+    if (!searchDNI.trim()) {
+      setSearchError('Ingrese un DNI para buscar');
+      return;
+    }
+
+    setIsSearching(true);
+    setSearchError('');
+
+    // Simular búsqueda con delay
+    setTimeout(() => {
+      const investor = findInvestorByDNI(searchDNI);
+      
+      if (investor) {
+        // Verificar si el inversionista ya está asignado
+        const alreadyAssigned = assignments?.some(a => a.investorLeadId === investor.id);
+        if (alreadyAssigned) {
+          setSearchError('Este inversionista ya está asignado a otro préstamo');
+          setFoundInvestor(null);
+        } else {
+          setFoundInvestor(investor);
+          setSearchError('');
+        }
+      } else {
+        setFoundInvestor(null);
+        setSearchError('No se encontró ningún inversionista con este DNI');
+      }
+      setIsSearching(false);
+    }, 500);
+  };
+
+  const validateForm = () => {
+    const errors = {};
+    
+    if (!mortgageData.mortgageAmount || parseFloat(mortgageData.mortgageAmount) <= 0) {
+      errors.mortgageAmount = 'Requerido';
+    }
+    if (!mortgageData.amountToBorrower || parseFloat(mortgageData.amountToBorrower) <= 0) {
+      errors.amountToBorrower = 'Requerido';
+    }
+    if (!mortgageData.amountToDominick || parseFloat(mortgageData.amountToDominick) <= 0) {
+      errors.amountToDominick = 'Requerido';
+    }
+    if (!mortgageData.interestRate || parseFloat(mortgageData.interestRate) <= 0) {
+      errors.interestRate = 'Requerido';
+    }
+    if (!mortgageData.termMonths || parseInt(mortgageData.termMonths) <= 0) {
+      errors.termMonths = 'Requerido';
+    }
+
+    // Validar que la suma de montos no exceda el monto de hipoteca
+    const total = parseFloat(mortgageData.amountToBorrower || 0) + parseFloat(mortgageData.amountToDominick || 0);
+    const mortgage = parseFloat(mortgageData.mortgageAmount || 0);
+    
+    if (total > mortgage) {
+      errors.amountToBorrower = 'La suma excede el monto de hipoteca';
+      errors.amountToDominick = 'La suma excede el monto de hipoteca';
+    }
+
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSaveAssignment = (e) => {
+    e.preventDefault();
+    
+    if (!selectedReport || !foundInvestor) return;
+    
+    if (!validateForm()) return;
+
+    const assignmentData = {
+      loanLeadId: selectedReport.id,
+      investorLeadId: foundInvestor.id,
+      assignedBy: user.id,
+      assignedByName: user.name,
+      
+      // Datos del préstamo original
+      loanAmount: selectedReport.loanAmount || 0,
+      appraisalAmount: selectedReport.appraisalInfo.precioTasacion,
+      
+      // Datos del formulario
+      mortgageAmount: parseFloat(mortgageData.mortgageAmount),
+      amountToBorrower: parseFloat(mortgageData.amountToBorrower),
+      amountToDominick: parseFloat(mortgageData.amountToDominick),
+      interestRate: parseFloat(mortgageData.interestRate),
+      termMonths: parseInt(mortgageData.termMonths),
+      modality: mortgageData.modality,
+      
+      // Datos de los clientes para referencia rápida
+      borrowerName: selectedReport.name,
+      borrowerDNI: selectedReport.documentNumber,
+      investorName: foundInvestor.name,
+      investorDNI: foundInvestor.documentNumber
+    };
+
+    createAssignment(assignmentData);
+    setShowSuccess(true);
+    
+    // Cerrar modal después de 1.5 segundos
+    setTimeout(() => {
+      setShowAssignmentModal(false);
+      setShowSuccess(false);
+    }, 1500);
+  };
+
+  const downloadFile = (fileData, fileName) => {
+    if (fileData && fileData.data) {
+      const link = document.createElement('a');
+      link.href = fileData.data;
+      link.download = fileName || fileData.name;
+      link.click();
+    }
+  };
+
+  return (
+    <DashboardLayout>
+      <div className="appraisal-reports-page">
+        <div className="page-header">
+          <div>
+            <h1>Reportes de Tasación</h1>
+            <p className="text-secondary">
+              {appraisalReports.length} {appraisalReports.length === 1 ? 'reporte disponible' : 'reportes disponibles'}
+            </p>
+          </div>
+        </div>
+
+        {appraisalReports.length > 0 ? (
+          <div className="reports-grid">
+            {appraisalReports.map(lead => {
+              const assigned = isAssigned(lead.id);
+              const assignment = getAssignmentInfo(lead.id);
+
+              return (
+                <div key={lead.id} className={`report-card ${assigned ? 'assigned' : ''}`}>
+                  <div className="report-header">
+                    <div className="report-title">
+                      <FileCheck size={24} className="report-icon" />
+                      <div>
+                        <h3>{lead.name}</h3>
+                        <p className="report-date">
+                          Completado: {new Date(lead.appraisalInfo.completedAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    {assigned ? (
+                      <span className="badge badge-info">Asignado</span>
+                    ) : (
+                      <span className="badge badge-success">Completo</span>
+                    )}
+                  </div>
+
+                  <div className="report-body">
+                    {assigned && (
+                      <div className="assigned-banner">
+                        <User size={16} />
+                        <span>Inversionista: <strong>{assignment.investorName}</strong></span>
+                      </div>
+                    )}
+
+                    <div className="report-section">
+                      <h4>Información del Cliente</h4>
+                      <div className="report-info-grid">
+                        <div className="report-info-item">
+                          <Phone size={14} />
+                          <span>{lead.phone}</span>
+                        </div>
+                        <div className="report-info-item">
+                          <Mail size={14} />
+                          <span>{lead.email}</span>
+                        </div>
+                        <div className="report-info-item">
+                          <MapPin size={14} />
+                          <span>{lead.address || 'No especificado'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="report-section">
+                      <h4>Ubicación de la Propiedad</h4>
+                      <div className="report-info-grid">
+                        <div className="report-info-item">
+                          <MapPin size={14} />
+                          <span>{lead.departamento || 'N/A'}</span>
+                        </div>
+                        <div className="report-info-item">
+                          <MapPin size={14} />
+                          <span>{lead.provincia || 'N/A'}</span>
+                        </div>
+                        <div className="report-info-item">
+                          <MapPin size={14} />
+                          <span>{lead.distrito || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="report-section">
+                      <h4>Detalles de Tasación</h4>
+                      <div className="report-details">
+                        <div className="detail-row">
+                          <span className="detail-label">Precio Tasación:</span>
+                          <span className="detail-value">S/ {lead.appraisalInfo.precioTasacion}</span>
+                        </div>
+                        {lead.appraisalInfo.tasacionCochera && (
+                          <div className="detail-row">
+                            <span className="detail-label">Tasación Cochera:</span>
+                            <span className="detail-value">S/ {lead.appraisalInfo.tasacionCochera}</span>
+                          </div>
+                        )}
+                        <div className="detail-row">
+                          <span className="detail-label">Área:</span>
+                          <span className="detail-value">{lead.appraisalInfo.area} m²</span>
+                        </div>
+                        <div className="detail-row">
+                          <span className="detail-label">Uso:</span>
+                          <span className="detail-value">{lead.appraisalInfo.uso}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="report-footer">
+                    <div className="footer-actions">
+                      {lead.appraisalInfo.reporteFile && (
+                        <button
+                          onClick={() => downloadFile(lead.appraisalInfo.reporteFile, `Reporte_Tasacion_${lead.name}.pdf`)}
+                          className="btn btn-secondary btn-block"
+                        >
+                          <Download size={18} />
+                          Descargar PDF
+                        </button>
+                      )}
+                      
+                      {!assigned && (
+                        <button
+                          onClick={() => handleOpenAssignment(lead)}
+                          className="btn btn-primary btn-block"
+                        >
+                          <UserPlus size={18} />
+                          Asignar Inversionista
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="empty-state">
+            <FileCheck size={64} className="empty-icon" />
+            <h3>No hay reportes de tasación disponibles</h3>
+            <p className="text-secondary">
+              Los reportes completados por el gestor de tasación aparecerán aquí
+            </p>
+          </div>
+        )}
+
+        {/* Modal de Asignación */}
+        {showAssignmentModal && selectedReport && (
+          <div className="modal-overlay" onClick={() => setShowAssignmentModal(false)}>
+            <div className="modal-content assignment-modal" onClick={(e) => e.stopPropagation()}>
+              <div className="modal-header">
+                <h2>Asignar Inversionista</h2>
+                <button className="close-btn" onClick={() => setShowAssignmentModal(false)}>
+                  <X size={24} />
+                </button>
+              </div>
+              
+              <div className="modal-body">
+                {showSuccess ? (
+                  <div className="success-message">
+                    <CheckCircle size={48} />
+                    <h3>¡Asignación Exitosa!</h3>
+                    <p>El inversionista ha sido vinculado correctamente</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Paso 1: Buscar Inversionista */}
+                    <div className="assignment-step">
+                      <h3>1. Buscar Inversionista</h3>
+                      <div className="search-box">
+                        <input
+                          type="text"
+                          placeholder="Ingrese DNI del inversionista"
+                          value={searchDNI}
+                          onChange={(e) => setSearchDNI(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && handleSearchInvestor()}
+                          className="form-input"
+                        />
+                        <button 
+                          onClick={handleSearchInvestor} 
+                          className="btn btn-primary"
+                          disabled={isSearching}
+                        >
+                          <Search size={18} />
+                          {isSearching ? 'Buscando...' : 'Buscar'}
+                        </button>
+                      </div>
+                      {searchError && (
+                        <div className="error-message">
+                          <AlertCircle size={16} />
+                          {searchError}
+                        </div>
+                      )}
+                      
+                      {foundInvestor && (
+                        <div className="investor-card-preview">
+                          <div className="preview-icon">
+                            <User size={24} />
+                          </div>
+                          <div className="preview-info">
+                            <h4>{foundInvestor.name}</h4>
+                            <p>{foundInvestor.email}</p>
+                            <p className="text-sm text-secondary">DNI: {foundInvestor.documentNumber}</p>
+                          </div>
+                          <div className="preview-check">
+                            <CheckCircle size={24} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Paso 2: Detalles de Hipoteca */}
+                    {foundInvestor && (
+                      <form onSubmit={handleSaveAssignment} className="assignment-step">
+                        <h3>2. Detalles de la Hipoteca</h3>
+                        
+                        <div className="summary-grid">
+                          <div className="summary-item">
+                            <span className="label">Solicitante:</span>
+                            <span className="value">{selectedReport.name}</span>
+                          </div>
+                          <div className="summary-item">
+                            <span className="label">Monto de Tasación:</span>
+                            <span className="value">S/ {selectedReport.appraisalInfo.precioTasacion}</span>
+                          </div>
+                        </div>
+
+                        <div className="form-grid">
+                          <div className="form-group">
+                            <label>Monto de Hipoteca *</label>
+                            <div className="input-wrapper">
+                              <DollarSign size={16} className="input-icon" />
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={mortgageData.mortgageAmount}
+                                onChange={(e) => setMortgageData({...mortgageData, mortgageAmount: e.target.value})}
+                                className={`form-input with-icon ${formErrors.mortgageAmount ? 'error' : ''}`}
+                                placeholder="0.00"
+                              />
+                            </div>
+                            {formErrors.mortgageAmount && <span className="field-error">{formErrors.mortgageAmount}</span>}
+                          </div>
+
+                          <div className="form-group">
+                            <label>Monto al Mutuario *</label>
+                            <div className="input-wrapper">
+                              <DollarSign size={16} className="input-icon" />
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={mortgageData.amountToBorrower}
+                                onChange={(e) => setMortgageData({...mortgageData, amountToBorrower: e.target.value})}
+                                className={`form-input with-icon ${formErrors.amountToBorrower ? 'error' : ''}`}
+                                placeholder="0.00"
+                              />
+                            </div>
+                            {formErrors.amountToBorrower && <span className="field-error">{formErrors.amountToBorrower}</span>}
+                          </div>
+
+                          <div className="form-group">
+                            <label>Monto a Dominick Pro *</label>
+                            <div className="input-wrapper">
+                              <DollarSign size={16} className="input-icon" />
+                              <input
+                                type="number"
+                                step="0.01"
+                                value={mortgageData.amountToDominick}
+                                onChange={(e) => setMortgageData({...mortgageData, amountToDominick: e.target.value})}
+                                className={`form-input with-icon ${formErrors.amountToDominick ? 'error' : ''}`}
+                                placeholder="0.00"
+                              />
+                            </div>
+                            {formErrors.amountToDominick && <span className="field-error">{formErrors.amountToDominick}</span>}
+                          </div>
+
+                          <div className="form-group">
+                            <label>Tasa de Interés (%) *</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              value={mortgageData.interestRate}
+                              onChange={(e) => setMortgageData({...mortgageData, interestRate: e.target.value})}
+                              className={`form-input ${formErrors.interestRate ? 'error' : ''}`}
+                              placeholder="Ej: 1.5"
+                            />
+                            {formErrors.interestRate && <span className="field-error">{formErrors.interestRate}</span>}
+                          </div>
+
+                          <div className="form-group">
+                            <label>Plazo (Meses) *</label>
+                            <input
+                              type="number"
+                              value={mortgageData.termMonths}
+                              onChange={(e) => setMortgageData({...mortgageData, termMonths: e.target.value})}
+                              className={`form-input ${formErrors.termMonths ? 'error' : ''}`}
+                              placeholder="Ej: 12"
+                            />
+                            {formErrors.termMonths && <span className="field-error">{formErrors.termMonths}</span>}
+                          </div>
+
+                          <div className="form-group">
+                            <label>Modalidad *</label>
+                            <select
+                              value={mortgageData.modality}
+                              onChange={(e) => setMortgageData({...mortgageData, modality: e.target.value})}
+                              className="form-input"
+                            >
+                              <option value="Mensual">Mensual</option>
+                              <option value="Trimestral">Trimestral</option>
+                              <option value="Semestral">Semestral</option>
+                              <option value="Anual">Anual</option>
+                              <option value="Al Vencimiento">Al Vencimiento</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="modal-actions">
+                          <button type="button" onClick={() => setShowAssignmentModal(false)} className="btn btn-secondary">
+                            Cancelar
+                          </button>
+                          <button type="submit" className="btn btn-primary">
+                            <Save size={18} />
+                            Guardar Asignación
+                          </button>
+                        </div>
+                      </form>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <style jsx>{`
+        .appraisal-reports-page {
+          animation: fadeIn 0.3s ease-out;
+        }
+
+        .page-header {
+          margin-bottom: var(--spacing-xl);
+        }
+
+        .page-header h1 {
+          margin-bottom: var(--spacing-xs);
+        }
+
+        .reports-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(500px, 1fr));
+          gap: var(--spacing-xl);
+        }
+
+        .report-card {
+          background: var(--color-bg-secondary);
+          border: 1px solid var(--color-border);
+          border-radius: var(--radius-lg);
+          overflow: hidden;
+          transition: all var(--transition-normal);
+          display: flex;
+          flex-direction: column;
+        }
+
+        .report-card.assigned {
+          border-color: var(--color-info);
+        }
+
+        .report-card:hover {
+          transform: translateY(-2px);
+          box-shadow: var(--shadow-lg);
+        }
+
+        .report-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: flex-start;
+          padding: var(--spacing-lg);
+          border-bottom: 1px solid var(--color-border);
+          background: var(--color-bg-elevated);
+        }
+
+        .report-title {
+          display: flex;
+          gap: var(--spacing-md);
+          align-items: flex-start;
+        }
+
+        .report-icon {
+          color: var(--color-success);
+        }
+
+        .report-title h3 {
+          margin: 0;
+          font-size: 1.125rem;
+        }
+
+        .report-date {
+          margin: var(--spacing-xs) 0 0 0;
+          font-size: 0.875rem;
+          color: var(--color-text-tertiary);
+        }
+
+        .assigned-banner {
+          background: var(--color-bg-info-subtle);
+          color: var(--color-info);
+          padding: var(--spacing-sm) var(--spacing-md);
+          border-radius: var(--radius-sm);
+          display: flex;
+          align-items: center;
+          gap: var(--spacing-sm);
+          font-size: 0.875rem;
+          margin-bottom: var(--spacing-md);
+        }
+
+        .report-body {
+          padding: var(--spacing-lg);
+          display: flex;
+          flex-direction: column;
+          gap: var(--spacing-lg);
+          flex: 1;
+        }
+
+        .report-section h4 {
+          margin: 0 0 var(--spacing-md) 0;
+          font-size: 0.875rem;
+          font-weight: 600;
+          color: var(--color-text-secondary);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        .report-info-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: var(--spacing-sm);
+        }
+
+        .report-info-item {
+          display: flex;
+          align-items: center;
+          gap: var(--spacing-xs);
+          font-size: 0.875rem;
+          color: var(--color-text-primary);
+        }
+
+        .report-details {
+          display: flex;
+          flex-direction: column;
+          gap: var(--spacing-sm);
+        }
+
+        .detail-row {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: var(--spacing-sm);
+          background: var(--color-bg-elevated);
+          border-radius: var(--radius-sm);
+        }
+
+        .detail-label {
+          font-size: 0.875rem;
+          color: var(--color-text-secondary);
+          font-weight: 500;
+        }
+
+        .detail-value {
+          font-size: 0.875rem;
+          color: var(--color-text-primary);
+          font-weight: 600;
+        }
+
+        .report-footer {
+          padding: var(--spacing-lg);
+          border-top: 1px solid var(--color-border);
+          background: var(--color-bg-elevated);
+        }
+
+        .footer-actions {
+          display: flex;
+          flex-direction: column;
+          gap: var(--spacing-sm);
+        }
+
+        .btn-block {
+          width: 100%;
+          justify-content: center;
+        }
+
+        .empty-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: var(--spacing-4xl);
+          text-align: center;
+        }
+
+        .empty-icon {
+          color: var(--color-text-tertiary);
+          margin-bottom: var(--spacing-lg);
+        }
+
+        .empty-state h3 {
+          margin-bottom: var(--spacing-sm);
+          color: var(--color-text-primary);
+        }
+
+        /* Modal Styles */
+        .modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.7);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          z-index: 1000;
+          backdrop-filter: blur(4px);
+          animation: fadeIn 0.2s ease-out;
+        }
+
+        .assignment-modal {
+          width: 90%;
+          max-width: 800px;
+          max-height: 90vh;
+          overflow-y: auto;
+          animation: slideUp 0.3s ease-out;
+        }
+
+        @keyframes slideUp {
+          from {
+            opacity: 0;
+            transform: translateY(20px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+
+        .assignment-step {
+          margin-bottom: var(--spacing-xl);
+          padding-bottom: var(--spacing-xl);
+          border-bottom: 1px solid var(--color-border);
+        }
+
+        .assignment-step:last-child {
+          border-bottom: none;
+          margin-bottom: 0;
+          padding-bottom: 0;
+        }
+
+        .assignment-step h3 {
+          margin-bottom: var(--spacing-lg);
+          color: var(--color-primary);
+        }
+
+        .search-box {
+          display: flex;
+          gap: var(--spacing-md);
+          margin-bottom: var(--spacing-md);
+        }
+
+        .search-box input {
+          flex: 1;
+        }
+
+        .error-message {
+          color: var(--color-error);
+          background: var(--color-bg-error-subtle);
+          padding: var(--spacing-sm) var(--spacing-md);
+          border-radius: var(--radius-sm);
+          font-size: 0.875rem;
+          display: flex;
+          align-items: center;
+          gap: var(--spacing-xs);
+          margin-top: var(--spacing-sm);
+        }
+
+        .investor-card-preview {
+          background: var(--color-bg-success-subtle);
+          border: 1px solid var(--color-success);
+          border-radius: var(--radius-md);
+          padding: var(--spacing-lg);
+          display: flex;
+          align-items: center;
+          gap: var(--spacing-lg);
+          margin-top: var(--spacing-md);
+          animation: slideUp 0.3s ease-out;
+        }
+
+        .preview-icon {
+          background: var(--color-bg-primary);
+          color: var(--color-primary);
+          padding: var(--spacing-md);
+          border-radius: 50%;
+        }
+
+        .preview-info {
+          flex: 1;
+        }
+
+        .preview-info h4 {
+          margin: 0 0 var(--spacing-xs) 0;
+          font-size: 1.125rem;
+        }
+
+        .preview-info p {
+          margin: 0;
+          color: var(--color-text-secondary);
+        }
+
+        .preview-check {
+          color: var(--color-success);
+        }
+
+        .summary-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: var(--spacing-lg);
+          background: var(--color-bg-secondary);
+          padding: var(--spacing-md);
+          border-radius: var(--radius-md);
+          margin-bottom: var(--spacing-lg);
+        }
+
+        .summary-item {
+          display: flex;
+          flex-direction: column;
+          gap: var(--spacing-xs);
+        }
+
+        .summary-item .label {
+          font-size: 0.875rem;
+          color: var(--color-text-secondary);
+        }
+
+        .summary-item .value {
+          font-weight: 600;
+          font-size: 1.125rem;
+        }
+
+        .form-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: var(--spacing-lg);
+        }
+
+        .input-wrapper {
+          position: relative;
+        }
+
+        .input-icon {
+          position: absolute;
+          left: 12px;
+          top: 50%;
+          transform: translateY(-50%);
+          color: var(--color-text-tertiary);
+        }
+
+        .form-input.with-icon {
+          padding-left: 36px;
+        }
+
+        .form-input.error {
+          border-color: var(--color-error);
+        }
+
+        .field-error {
+          color: var(--color-error);
+          font-size: 0.75rem;
+          margin-top: var(--spacing-xs);
+          display: block;
+        }
+
+        .success-message {
+          text-align: center;
+          padding: var(--spacing-4xl);
+          animation: slideUp 0.3s ease-out;
+        }
+
+        .success-message svg {
+          color: var(--color-success);
+          margin-bottom: var(--spacing-lg);
+        }
+
+        .success-message h3 {
+          margin-bottom: var(--spacing-sm);
+          color: var(--color-success);
+        }
+
+        @media (max-width: 768px) {
+          .reports-grid {
+            grid-template-columns: 1fr;
+          }
+          
+          .form-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .summary-grid {
+            grid-template-columns: 1fr;
+          }
+        }
+      `}</style>
+    </DashboardLayout>
+  );
+};
+
+export default AppraisalReportsPage;
