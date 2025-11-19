@@ -45,10 +45,7 @@ export const DataProvider = ({ children }) => {
   }, []);
 
   const initializeData = () => {
-    // Forzar actualización de usuarios - limpiar datos antiguos
-    localStorage.removeItem('crm_users');
-    
-    // Cargar o crear usuarios de ejemplo
+    // Cargar usuarios
     let savedUsers = JSON.parse(localStorage.getItem('crm_users') || '[]');
     
     if (savedUsers.length === 0) {
@@ -139,6 +136,18 @@ export const DataProvider = ({ children }) => {
     }
     
     setUsers(savedUsers);
+    
+    // Cargar leads
+    const savedLeads = JSON.parse(localStorage.getItem('crm_leads') || '[]');
+    setLeads(savedLeads);
+    
+    // Cargar clientes
+    const savedClients = JSON.parse(localStorage.getItem('crm_clients') || '[]');
+    setClients(savedClients);
+    
+    // Cargar campañas
+    const savedCampaigns = JSON.parse(localStorage.getItem('crm_campaigns') || '[]');
+    setCampaigns(savedCampaigns);
     
     // Cargar asignaciones
     const savedAssignments = JSON.parse(localStorage.getItem('crm_assignments') || '[]');

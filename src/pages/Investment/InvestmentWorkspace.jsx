@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Target, Phone, Mail, Calendar, CheckCircle, XCircle, Clock, MapPin, CreditCard, DollarSign, Percent, FileText, X, Edit2, User, Download } from 'lucide-react';
+import { Target, Phone, Mail, Calendar, CheckCircle, XCircle, Clock, MapPin, CreditCard, DollarSign, Percent, FileText, X, Edit2, User, Download, Check } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
 import DashboardLayout from '../../components/Layout/DashboardLayout';
@@ -13,6 +13,9 @@ const SalesWorkspace = () => {
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({});
   const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
   const [appointmentData, setAppointmentData] = useState({
     date: '',
     time: '',
@@ -114,9 +117,20 @@ const SalesWorkspace = () => {
   };
 
   const handleSave = () => {
-    updateLead(selectedLead.id, formData);
-    setSelectedLead({ ...selectedLead, ...formData });
-    setEditMode(false);
+    setIsSaving(true);
+    
+    // Simular guardado con delay para mejor UX
+    setTimeout(() => {
+      updateLead(selectedLead.id, formData);
+      setSelectedLead({ ...selectedLead, ...formData });
+      setEditMode(false);
+      setIsSaving(false);
+      
+      // Mostrar toast de éxito
+      setToastMessage('Cambios guardados exitosamente');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    }, 500);
   };
 
   const handleClose = () => {
@@ -158,24 +172,36 @@ const SalesWorkspace = () => {
 
   const handleSaveAppointment = () => {
     if (!appointmentData.date || !appointmentData.time || !appointmentData.appraisalCost) {
-      alert('Por favor complete todos los campos obligatorios');
+      setToastMessage('Por favor complete todos los campos obligatorios');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
       return;
     }
 
-    const appointmentInfo = {
-      ...appointmentData,
-      createdAt: new Date().toISOString()
-    };
+    setIsSaving(true);
+    
+    setTimeout(() => {
+      const appointmentInfo = {
+        ...appointmentData,
+        createdAt: new Date().toISOString()
+      };
 
-    updateLead(selectedLead.id, { appointment: appointmentInfo });
-    setSelectedLead({ ...selectedLead, appointment: appointmentInfo });
-    setShowAppointmentModal(false);
-    setAppointmentData({
-      date: '',
-      time: '',
-      meetingType: 'presencial',
-      appraisalCost: ''
-    });
+      updateLead(selectedLead.id, { appointment: appointmentInfo });
+      setSelectedLead({ ...selectedLead, appointment: appointmentInfo });
+      setShowAppointmentModal(false);
+      setIsSaving(false);
+      setAppointmentData({
+        date: '',
+        time: '',
+        meetingType: 'presencial',
+        appraisalCost: ''
+      });
+      
+      // Mostrar toast de éxito
+      setToastMessage('Cita registrada exitosamente');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+    }, 500);
   };
 
   return (
@@ -345,6 +371,47 @@ const SalesWorkspace = () => {
                         </label>
                         <input
                           type="text"
+                          className="input"
+                          value={formData.name}
+                          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                          placeholder="Ingrese nombre completo"
+                        />
+                      </div>
+
+                      <div className="grid grid-cols-2">
+                        <div className="input-group">
+                          <label className="input-label">
+                            <User size={16} />
+                            Tipo de Documento *
+                          </label>
+                          <select
+                            className="select"
+                            value={formData.documentType}
+                            onChange={(e) => setFormData({ ...formData, documentType: e.target.value })}
+                          >
+                            <option value="DNI">DNI</option>
+                            <option value="CE">Carnet de Extranjería</option>
+                            <option value="Pasaporte">Pasaporte</option>
+                          </select>
+                        </div>
+                        <div className="input-group">
+                          <label className="input-label">
+                            <User size={16} />
+                            Número de Documento *
+                          </label>
+                          <input
+                            type="text"
+                            className="input"
+                            value={formData.documentNumber}
+                            onChange={(e) => setFormData({ ...formData, documentNumber: e.target.value })}
+                            placeholder="Ingrese DNI/CE/Pasaporte"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3">
+                        <div className="input-group">
+                          <label className="input-label">
                             <MapPin size={16} />
                             Departamento *
                           </label>
@@ -741,11 +808,21 @@ const SalesWorkspace = () => {
               <div className="modal-actions">
                 {editMode ? (
                   <>
-                    <button onClick={() => setEditMode(false)} className="btn btn-secondary">
+                    <button onClick={() => setEditMode(false)} className="btn btn-secondary" disabled={isSaving}>
                       Cancelar
                     </button>
-                    <button onClick={handleSave} className="btn btn-primary">
-                      Guardar Cambios
+                    <button onClick={handleSave} className="btn btn-primary" disabled={isSaving}>
+                      {isSaving ? (
+                        <>
+                          <div className="spinner"></div>
+                          Guardando...
+                        </>
+                      ) : (
+                        <>
+                          <Check size={18} />
+                          Guardar Cambios
+                        </>
+                      )}
                     </button>
                   </>
                 ) : (
@@ -836,15 +913,32 @@ const SalesWorkspace = () => {
               </div>
 
               <div className="modal-actions">
-                <button onClick={() => setShowAppointmentModal(false)} className="btn btn-secondary">
+                <button onClick={() => setShowAppointmentModal(false)} className="btn btn-secondary" disabled={isSaving}>
                   Cancelar
                 </button>
-                <button onClick={handleSaveAppointment} className="btn btn-primary">
-                  <CheckCircle size={16} />
-                  Guardar Cita
+                <button onClick={handleSaveAppointment} className="btn btn-primary" disabled={isSaving}>
+                  {isSaving ? (
+                    <>
+                      <div className="spinner"></div>
+                      Guardando...
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle size={16} />
+                      Guardar Cita
+                    </>
+                  )}
                 </button>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Toast Notification */}
+        {showToast && (
+          <div className="toast-notification">
+            <Check size={20} />
+            <span>{toastMessage}</span>
           </div>
         )}
       </div>
@@ -1537,6 +1631,56 @@ const SalesWorkspace = () => {
             overflow-x: auto;
             flex-wrap: nowrap;
           }
+        }
+
+        /* Toast Notification */
+        .toast-notification {
+          position: fixed;
+          bottom: 30px;
+          right: 30px;
+          background: var(--color-success);
+          color: white;
+          padding: 1rem 1.5rem;
+          border-radius: var(--radius-lg);
+          box-shadow: var(--shadow-xl);
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          font-weight: 500;
+          z-index: 10000;
+          animation: slideInRight 0.3s ease-out;
+        }
+
+        @keyframes slideInRight {
+          from {
+            transform: translateX(400px);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+
+        /* Spinner */
+        .spinner {
+          width: 18px;
+          height: 18px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: white;
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        .btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
       `}</style>
     </DashboardLayout>
