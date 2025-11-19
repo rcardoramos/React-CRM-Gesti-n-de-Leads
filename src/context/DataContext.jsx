@@ -327,6 +327,20 @@ export const DataProvider = ({ children }) => {
     setAssignments(updatedAssignments);
     localStorage.setItem('crm_assignments', JSON.stringify(updatedAssignments));
     
+    // Marcar el inversionista como asignado
+    const updatedLeads = leads.map(lead => {
+      if (lead.id === assignmentData.investorLeadId) {
+        return { ...lead, isAssigned: true, assignedAt: new Date().toISOString() };
+      }
+      if (lead.id === assignmentData.loanLeadId) {
+        return { ...lead, hasInvestorAssigned: true, investorAssignedAt: new Date().toISOString() };
+      }
+      return lead;
+    });
+    
+    setLeads(updatedLeads);
+    localStorage.setItem('crm_leads', JSON.stringify(updatedLeads));
+    
     return newAssignment;
   };
 

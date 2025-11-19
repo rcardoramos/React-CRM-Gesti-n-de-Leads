@@ -130,39 +130,56 @@ const AppraisalReportsPage = () => {
     
     if (!validateForm()) return;
 
-    const assignmentData = {
-      loanLeadId: selectedReport.id,
-      investorLeadId: foundInvestor.id,
-      assignedBy: user.id,
-      assignedByName: user.name,
-      
-      // Datos del préstamo original
-      loanAmount: selectedReport.loanAmount || 0,
-      appraisalAmount: selectedReport.appraisalInfo.precioTasacion,
-      
-      // Datos del formulario
-      mortgageAmount: parseFloat(mortgageData.mortgageAmount),
-      amountToBorrower: parseFloat(mortgageData.amountToBorrower),
-      amountToDominick: parseFloat(mortgageData.amountToDominick),
-      interestRate: parseFloat(mortgageData.interestRate),
-      termMonths: parseInt(mortgageData.termMonths),
-      modality: mortgageData.modality,
-      
-      // Datos de los clientes para referencia rápida
-      borrowerName: selectedReport.name,
-      borrowerDNI: selectedReport.documentNumber,
-      investorName: foundInvestor.name,
-      investorDNI: foundInvestor.documentNumber
-    };
-
-    createAssignment(assignmentData);
-    setShowSuccess(true);
+    setIsSaving(true);
     
-    // Cerrar modal después de 1.5 segundos
+    // Delay para mostrar loading
     setTimeout(() => {
-      setShowAssignmentModal(false);
-      setShowSuccess(false);
-    }, 1500);
+      const assignmentData = {
+        loanLeadId: selectedReport.id,
+        investorLeadId: foundInvestor.id,
+        assignedBy: user.id,
+        assignedByName: user.name,
+        
+        // Datos del préstamo original
+        loanAmount: selectedReport.loanAmount || 0,
+        appraisalAmount: selectedReport.appraisalInfo.precioTasacion,
+        
+        // Datos del formulario
+        mortgageAmount: parseFloat(mortgageData.mortgageAmount),
+        amountToBorrower: parseFloat(mortgageData.amountToBorrower),
+        amountToDominick: parseFloat(mortgageData.amountToDominick),
+        interestRate: parseFloat(mortgageData.interestRate),
+        termMonths: parseInt(mortgageData.termMonths),
+        modality: mortgageData.modality,
+        
+        // Datos de los clientes para referencia rápida
+        borrowerName: selectedReport.name,
+        borrowerDNI: selectedReport.documentNumber,
+        investorName: foundInvestor.name,
+        investorDNI: foundInvestor.documentNumber
+      };
+
+      createAssignment(assignmentData);
+      setIsSaving(false);
+      setShowSuccess(true);
+      
+      // Cerrar modal después de 2 segundos
+      setTimeout(() => {
+        setShowAssignmentModal(false);
+        setShowSuccess(false);
+        // Resetear formulario
+        setSearchDNI('');
+        setFoundInvestor(null);
+        setMortgageData({
+          mortgageAmount: '',
+          amountToBorrower: '',
+          amountToDominick: '',
+          interestRate: '',
+          termMonths: '',
+          modality: 'Mensual'
+        });
+      }, 2000);
+    }, 300);
   };
 
   const downloadFile = (fileData, fileName) => {
@@ -205,7 +222,12 @@ const AppraisalReportsPage = () => {
                       </div>
                     </div>
                     {assigned ? (
-                      <span className="badge badge-info">Asignado</span>
+                      <>
+                        <span className="badge badge-info">Asignado</span>
+                        <span className="badge badge-warning">Oportunidad Tomada</span>
+                      </>
+                    ) : lead.hasInvestorAssigned ? (
+                      <span className="badge badge-warning">Oportunidad Tomada</span>
                     ) : (
                       <span className="badge badge-success">Completo</span>
                     )}
@@ -276,6 +298,12 @@ const AppraisalReportsPage = () => {
                           <span className="detail-label">Uso:</span>
                           <span className="detail-value">{lead.appraisalInfo.uso}</span>
                         </div>
+                        {lead.commercialInterestRate && (
+                          <div className="detail-row highlight">
+                            <span className="detail-label">Tasa de Interés (Comercial):</span>
+                            <span className="detail-value">{lead.commercialInterestRate}%</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -489,12 +517,21 @@ const AppraisalReportsPage = () => {
                         </div>
 
                         <div className="modal-actions">
-                          <button type="button" onClick={() => setShowAssignmentModal(false)} className="btn btn-secondary">
+                          <button type="button" onClick={() => setShowAssignmentModal(false)} className="btn btn-secondary" disabled={isSaving}>
                             Cancelar
                           </button>
-                          <button type="submit" className="btn btn-primary">
-                            <Save size={18} />
-                            Guardar Asignación
+                          <button type="submit" className="btn btn-primary" disabled={isSaving}>
+                            {isSaving ? (
+                              <>
+                                <div className="spinner"></div>
+                                Guardando...
+                              </>
+                            ) : (
+                              <>
+                                <Save size={18} />
+                                Guardar Asignación
+                              </>
+                            )}
                           </button>
                         </div>
                       </form>
@@ -688,90 +725,173 @@ const AppraisalReportsPage = () => {
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(0, 0, 0, 0.7);
+          background: rgba(0, 0, 0, 0.75);
           display: flex;
           justify-content: center;
           align-items: center;
           z-index: 1000;
-          backdrop-filter: blur(4px);
+          backdrop-filter: blur(8px);
           animation: fadeIn 0.2s ease-out;
+          padding: var(--spacing-lg);
         }
 
         .assignment-modal {
-          width: 90%;
-          max-width: 800px;
+          width: 100%;
+          max-width: 900px;
           max-height: 90vh;
           overflow-y: auto;
-          animation: slideUp 0.3s ease-out;
+          animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+          border-radius: var(--radius-xl);
         }
 
         @keyframes slideUp {
           from {
             opacity: 0;
-            transform: translateY(20px);
+            transform: translateY(30px) scale(0.95);
           }
           to {
             opacity: 1;
-            transform: translateY(0);
+            transform: translateY(0) scale(1);
           }
         }
 
+        .modal-body {
+          padding: var(--spacing-2xl);
+          background: var(--color-bg-elevated);
+        }
+
         .assignment-step {
+          background: var(--color-bg-secondary);
+          padding: var(--spacing-xl);
+          border-radius: var(--radius-lg);
           margin-bottom: var(--spacing-xl);
-          padding-bottom: var(--spacing-xl);
-          border-bottom: 1px solid var(--color-border);
+          border: 1px solid var(--color-border);
+          transition: all var(--transition-normal);
+        }
+
+        .assignment-step:hover {
+          border-color: var(--color-primary);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
         }
 
         .assignment-step:last-child {
-          border-bottom: none;
           margin-bottom: 0;
-          padding-bottom: 0;
         }
 
         .assignment-step h3 {
-          margin-bottom: var(--spacing-lg);
+          margin: 0 0 var(--spacing-lg) 0;
           color: var(--color-primary);
+          font-size: 1.25rem;
+          font-weight: 600;
+          display: flex;
+          align-items: center;
+          gap: var(--spacing-sm);
         }
 
+        .assignment-step h3::before {
+          content: '';
+          width: 4px;
+          height: 24px;
+          background: var(--color-primary);
+          border-radius: var(--radius-sm);
+        }
+
+        /* Enhanced Search Box */
         .search-box {
           display: flex;
           gap: var(--spacing-md);
           margin-bottom: var(--spacing-md);
+          position: relative;
         }
 
         .search-box input {
           flex: 1;
+          padding: 1rem 1rem 1rem 3rem;
+          font-size: 1rem;
+          border: 2px solid var(--color-border);
+          border-radius: var(--radius-md);
+          background: var(--color-bg-elevated);
+          transition: all var(--transition-normal);
+        }
+
+        .search-box input:focus {
+          outline: none;
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+          background: white;
+        }
+
+        .search-box input::placeholder {
+          color: var(--color-text-tertiary);
+        }
+
+        .search-box::before {
+          content: '';
+          position: absolute;
+          left: 1rem;
+          top: 50%;
+          transform: translateY(-50%);
+          width: 20px;
+          height: 20px;
+          background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%239ca3af'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M10 6H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V8a2 2 0 00-2-2h-5m-4 0V5a2 2 0 114 0v1m-4 0a2 2 0 104 0m-5 8a2 2 0 100-4 2 2 0 000 4zm0 0c1.306 0 2.417.835 2.83 2M9 14a3.001 3.001 0 00-2.83 2M15 11h3m-3 4h2'/%3E%3C/svg%3E") no-repeat center;
+          background-size: contain;
+          pointer-events: none;
+          z-index: 1;
+        }
+
+        .search-box .btn {
+          padding: 1rem 2rem;
+          font-weight: 600;
+          min-width: 140px;
+          box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+        }
+
+        .search-box .btn:hover {
+          transform: translateY(-1px);
+          box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
         }
 
         .error-message {
           color: var(--color-error);
           background: var(--color-bg-error-subtle);
-          padding: var(--spacing-sm) var(--spacing-md);
-          border-radius: var(--radius-sm);
-          font-size: 0.875rem;
+          padding: var(--spacing-md) var(--spacing-lg);
+          border-radius: var(--radius-md);
+          font-size: 0.9375rem;
           display: flex;
           align-items: center;
-          gap: var(--spacing-xs);
+          gap: var(--spacing-sm);
           margin-top: var(--spacing-sm);
+          border-left: 4px solid var(--color-error);
+          animation: shake 0.4s ease-in-out;
         }
 
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-5px); }
+          75% { transform: translateX(5px); }
+        }
+
+        /* Investor Card Preview */
         .investor-card-preview {
-          background: var(--color-bg-success-subtle);
-          border: 1px solid var(--color-success);
-          border-radius: var(--radius-md);
-          padding: var(--spacing-lg);
+          background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+          border: 2px solid var(--color-success);
+          border-radius: var(--radius-lg);
+          padding: var(--spacing-xl);
           display: flex;
           align-items: center;
           gap: var(--spacing-lg);
-          margin-top: var(--spacing-md);
+          margin-top: var(--spacing-lg);
           animation: slideUp 0.3s ease-out;
+          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
         }
 
         .preview-icon {
-          background: var(--color-bg-primary);
-          color: var(--color-primary);
-          padding: var(--spacing-md);
+          background: var(--color-success);
+          color: white;
+          padding: var(--spacing-lg);
           border-radius: 50%;
+          box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
         }
 
         .preview-info {
@@ -780,26 +900,41 @@ const AppraisalReportsPage = () => {
 
         .preview-info h4 {
           margin: 0 0 var(--spacing-xs) 0;
-          font-size: 1.125rem;
+          font-size: 1.25rem;
+          color: var(--color-text-primary);
+          font-weight: 600;
         }
 
         .preview-info p {
-          margin: 0;
+          margin: var(--spacing-xs) 0 0 0;
           color: var(--color-text-secondary);
+          font-size: 0.9375rem;
         }
 
         .preview-check {
           color: var(--color-success);
+          animation: scaleIn 0.3s ease-out;
         }
 
+        @keyframes scaleIn {
+          from {
+            transform: scale(0);
+          }
+          to {
+            transform: scale(1);
+          }
+        }
+
+        /* Summary Grid */
         .summary-grid {
           display: grid;
           grid-template-columns: 1fr 1fr;
           gap: var(--spacing-lg);
-          background: var(--color-bg-secondary);
-          padding: var(--spacing-md);
-          border-radius: var(--radius-md);
-          margin-bottom: var(--spacing-lg);
+          background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+          padding: var(--spacing-lg);
+          border-radius: var(--radius-lg);
+          margin-bottom: var(--spacing-xl);
+          border: 1px solid #bfdbfe;
         }
 
         .summary-item {
@@ -811,17 +946,34 @@ const AppraisalReportsPage = () => {
         .summary-item .label {
           font-size: 0.875rem;
           color: var(--color-text-secondary);
+          font-weight: 500;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
 
         .summary-item .value {
-          font-weight: 600;
-          font-size: 1.125rem;
+          font-weight: 700;
+          font-size: 1.375rem;
+          color: var(--color-primary);
         }
 
+        /* Form Grid */
         .form-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
           gap: var(--spacing-lg);
+        }
+
+        .form-group {
+          display: flex;
+          flex-direction: column;
+          gap: var(--spacing-xs);
+        }
+
+        .form-group label {
+          font-weight: 600;
+          color: var(--color-text-primary);
+          font-size: 0.9375rem;
         }
 
         .input-wrapper {
@@ -830,41 +982,87 @@ const AppraisalReportsPage = () => {
 
         .input-icon {
           position: absolute;
-          left: 12px;
+          left: 14px;
           top: 50%;
           transform: translateY(-50%);
           color: var(--color-text-tertiary);
+          pointer-events: none;
         }
 
         .form-input.with-icon {
-          padding-left: 36px;
+          padding-left: 42px;
+        }
+
+        .form-input {
+          padding: 0.875rem 1rem;
+          border: 2px solid var(--color-border);
+          border-radius: var(--radius-md);
+          font-size: 1rem;
+          transition: all var(--transition-normal);
+          background: var(--color-bg-elevated);
+        }
+
+        .form-input:focus {
+          outline: none;
+          border-color: var(--color-primary);
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+          background: white;
         }
 
         .form-input.error {
           border-color: var(--color-error);
+          background: var(--color-bg-error-subtle);
         }
 
         .field-error {
           color: var(--color-error);
-          font-size: 0.75rem;
+          font-size: 0.8125rem;
           margin-top: var(--spacing-xs);
-          display: block;
+          display: flex;
+          align-items: center;
+          gap: var(--spacing-xs);
         }
 
+        /* Modal Actions */
+        .modal-actions {
+          display: flex;
+          gap: var(--spacing-md);
+          justify-content: flex-end;
+          padding: var(--spacing-xl) var(--spacing-2xl);
+          background: var(--color-bg-secondary);
+          border-top: 1px solid var(--color-border);
+          border-radius: 0 0 var(--radius-xl) var(--radius-xl);
+        }
+
+        .modal-actions .btn {
+          min-width: 140px;
+          padding: 0.875rem 1.5rem;
+          font-weight: 600;
+        }
+
+        /* Success Message */
         .success-message {
           text-align: center;
-          padding: var(--spacing-4xl);
+          padding: var(--spacing-4xl) var(--spacing-2xl);
           animation: slideUp 0.3s ease-out;
         }
 
         .success-message svg {
           color: var(--color-success);
-          margin-bottom: var(--spacing-lg);
+          margin-bottom: var(--spacing-xl);
+          animation: scaleIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
         }
 
         .success-message h3 {
-          margin-bottom: var(--spacing-sm);
+          margin-bottom: var(--spacing-md);
           color: var(--color-success);
+          font-size: 1.75rem;
+          font-weight: 700;
+        }
+
+        .success-message p {
+          color: var(--color-text-secondary);
+          font-size: 1.125rem;
         }
 
         @media (max-width: 768px) {
@@ -878,6 +1076,70 @@ const AppraisalReportsPage = () => {
 
           .summary-grid {
             grid-template-columns: 1fr;
+          }
+        }
+
+        /* Highlight for important info */
+        .detail-row.highlight {
+          background: var(--color-bg-primary-subtle);
+          border-left: 3px solid var(--color-primary);
+          font-weight: 600;
+        }
+
+        .detail-row.highlight .detail-value {
+          color: var(--color-primary);
+          font-size: 1rem;
+        }
+
+        /* Improved Modal Styling */
+        .modal-content {
+          background: var(--color-bg-elevated);
+          border: 1px solid var(--color-border);
+        }
+
+        .modal-header {
+          background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-dark) 100%);
+          color: white;
+          padding: var(--spacing-xl);
+          border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+        }
+
+        .modal-header h2 {
+          color: white;
+          margin: 0;
+        }
+
+        .close-btn {
+          background: rgba(255, 255, 255, 0.2);
+          color: white;
+          border: none;
+          width: 36px;
+          height: 36px;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          transition: background var(--transition-normal);
+        }
+
+        .close-btn:hover {
+          background: rgba(255, 255, 255, 0.3);
+        }
+
+        /* Spinner for loading states */
+        .spinner {
+          width: 18px;
+          height: 18px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: white;
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+          to {
+            transform: rotate(360deg);
           }
         }
       `}</style>

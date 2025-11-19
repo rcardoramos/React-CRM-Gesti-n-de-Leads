@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Ruler, Search, Phone, Mail, MapPin, DollarSign, FileText, User, Calendar, CheckCircle, Download, Upload } from 'lucide-react';
+import { Ruler, Search, Phone, Mail, MapPin, DollarSign, FileText, User, Calendar, CheckCircle, Download, Upload, Check } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import DashboardLayout from '../../components/Layout/DashboardLayout';
 
@@ -8,6 +8,9 @@ const AppraisalManagerPanel = () => {
   const [searchDNI, setSearchDNI] = useState('');
   const [selectedLead, setSelectedLead] = useState(null);
   const [showModal, setShowModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
   const [appraisalData, setAppraisalData] = useState({
     precioTasacion: '',
     tasacionCochera: '',
@@ -27,7 +30,9 @@ const AppraisalManagerPanel = () => {
     if (found) {
       handleLeadClick(found);
     } else {
-      alert('No se encontró ningún cliente con pago de tasación confirmado para ese DNI');
+      setToastMessage('No se encontró ningún cliente con pago de tasación confirmado para ese DNI');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
     }
   };
 
@@ -54,7 +59,9 @@ const AppraisalManagerPanel = () => {
     const file = e.target.files[0];
     if (file) {
       if (file.type !== 'application/pdf') {
-        alert('Por favor suba solo archivos PDF');
+        setToastMessage('Por favor suba solo archivos PDF');
+        setShowToast(true);
+        setTimeout(() => setShowToast(false), 3000);
         return;
       }
       const reader = new FileReader();
@@ -67,18 +74,43 @@ const AppraisalManagerPanel = () => {
 
   const handleSave = () => {
     if (!appraisalData.precioTasacion || !appraisalData.situacion || !appraisalData.area || !appraisalData.uso || !appraisalData.reporteFile) {
-      alert('Por favor complete todos los campos obligatorios, incluyendo el reporte PDF');
+      setToastMessage('Por favor complete todos los campos obligatorios, incluyendo el reporte PDF');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
       return;
     }
 
-    const appraisalInfo = {
-      ...appraisalData,
-      completedAt: new Date().toISOString()
-    };
+    setIsSaving(true);
+    
+    setTimeout(() => {
+      const appraisalInfo = {
+        ...appraisalData,
+        completedAt: new Date().toISOString()
+      };
 
-    updateLead(selectedLead.id, { appraisalInfo });
-    setSelectedLead({ ...selectedLead, appraisalInfo });
-    alert('Información de tasación guardada exitosamente');
+      updateLead(selectedLead.id, { appraisalInfo });
+      setSelectedLead({ ...selectedLead, appraisalInfo });
+      setIsSaving(false);
+      
+      // Mostrar toast de éxito
+      setToastMessage('Tasación guardada exitosamente');
+      setShowToast(true);
+      setTimeout(() => setShowToast(false), 3000);
+      
+      // Cerrar modal automáticamente después de 1 segundo
+      setTimeout(() => {
+        setShowModal(false);
+        // Resetear formulario
+        setAppraisalData({
+          precioTasacion: '',
+          tasacionCochera: '',
+          situacion: '',
+          area: '',
+          uso: '',
+          reporteFile: null
+        });
+      }, 1000);
+    }, 300);
   };
 
   const downloadFile = (fileData, fileName) => {
@@ -473,17 +505,34 @@ const AppraisalManagerPanel = () => {
               </div>
 
               <div className="modal-actions">
-                <button onClick={() => setShowModal(false)} className="btn btn-secondary">
+                <button onClick={() => setShowModal(false)} className="btn btn-secondary" disabled={isSaving}>
                   Cerrar
                 </button>
                 {!selectedLead.appraisalInfo && (
-                  <button onClick={handleSave} className="btn btn-success">
-                    <CheckCircle size={16} />
-                    Guardar Tasación
+                  <button onClick={handleSave} className="btn btn-success" disabled={isSaving}>
+                    {isSaving ? (
+                      <>
+                        <div className="spinner"></div>
+                        Guardando...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle size={16} />
+                        Guardar Tasación
+                      </>
+                    )}
                   </button>
                 )}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Toast Notification */}
+        {showToast && (
+          <div className="toast-notification">
+            <Check size={20} />
+            <span>{toastMessage}</span>
           </div>
         )}
       </div>
@@ -878,6 +927,56 @@ const AppraisalManagerPanel = () => {
           .leads-grid {
             grid-template-columns: 1fr;
           }
+        }
+
+        /* Toast Notification */
+        .toast-notification {
+          position: fixed;
+          bottom: 30px;
+          right: 30px;
+          background: var(--color-success);
+          color: white;
+          padding: 1rem 1.5rem;
+          border-radius: var(--radius-lg);
+          box-shadow: var(--shadow-xl);
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          font-weight: 500;
+          z-index: 10000;
+          animation: slideInRight 0.3s ease-out;
+        }
+
+        @keyframes slideInRight {
+          from {
+            transform: translateX(400px);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+
+        /* Spinner */
+        .spinner {
+          width: 18px;
+          height: 18px;
+          border: 2px solid rgba(255, 255, 255, 0.3);
+          border-top-color: white;
+          border-radius: 50%;
+          animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+          to {
+            transform: rotate(360deg);
+          }
+        }
+
+        .btn:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
         }
       `}</style>
     </DashboardLayout>

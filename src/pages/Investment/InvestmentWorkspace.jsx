@@ -130,7 +130,7 @@ const SalesWorkspace = () => {
       setToastMessage('Cambios guardados exitosamente');
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
-    }, 500);
+    }, 300);
   };
 
   const handleClose = () => {
@@ -201,7 +201,7 @@ const SalesWorkspace = () => {
       setToastMessage('Cita registrada exitosamente');
       setShowToast(true);
       setTimeout(() => setShowToast(false), 3000);
-    }, 500);
+    }, 300);
   };
 
   return (
@@ -287,6 +287,12 @@ const SalesWorkspace = () => {
                       {lead.appraisalInfo && (
                         <span className="badge badge-success approval-badge">
                           TASACIÓN COMPLETA
+                        </span>
+                      )}
+                      {/* Badge Inversionista Asignado */}
+                      {lead.isAssigned && (
+                        <span className="badge badge-info approval-badge">
+                          INVERSIONISTA ASIGNADO
                         </span>
                       )}
                     </div>
